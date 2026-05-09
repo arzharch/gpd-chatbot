@@ -1,49 +1,39 @@
 from langgraph.graph import StateGraph
 from langgraph.runtime import Runtime
 from typing_extensions import TypedDict
-
+from openai import AsyncOpenAI
+from agent.state import InputState, OutputState
+from config import settings
 from typing import Dict, Any
 
 from dataclasses import dataclass
 
 
-class Context(TypedDict):
-    my_configurable_param: str
+client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
+async def call_model(state : InputState) -> Dict[str, Any]:
 
-@dataclass
-class State:
+    prompt = (
+        "You are a real estate assistant. Ask clarifying questions and reply concisely.\n"
+        f"User: {state['user_input']}"
+    )
 
-    """
-    Inpuy state for the agent.
-    Defines initial structure of the incoming data
-    
-    """
+    response = await client.chat.completions.create(
+        model = settings.MODEL_NAME,
+        messages=[{"role":"user", "content":prompt}]
+    )
 
-    change_me:str ="example"
+    message = response.choices[0].message.content or ""
 
-
-async def call_model(state: State, runtime: Runtime[Context]) -> Dict[str,Any]:
-    """
-    This is the function that will be called by the agent.
-    It takes in the current state and the runtime, and returns a dictionary of outputs.
-    """
-
-    # Example of how to access the context
-    my_configurable_param = runtime.context.my_configurable_param
-
-    # Example of how to access the state
-    change_me = state.change_me
-
-    # Here you would call your model with the appropriate inputs and get the outputs
-    # For this example, we'll just return a dummy output
-    output = {"output": f"Model called with change_me: {change_me} and my_configurable_param: {my_configurable_param}"}
-
-    return output
+    return {
+        "type" : "ai_reply",
+        "message" : message,
+        "ids" : None
+    }
 
 # Define the graph
-graph= (StateGraph(State, context_schema=Context)
-        .add_node(call_model)
+graph= (StateGraph(InputState, output_schema= OutputState)
+        .add_node("call_model", call_model)
         .add_edge("__start__", "call_model")
-        .compile(name="New Graph")
+        .compile(name="GPD Chat")
         )
