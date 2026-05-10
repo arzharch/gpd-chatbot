@@ -1,34 +1,35 @@
-from langgraph.graph import StateGraph
-from langgraph.runtime import Runtime
-from typing_extensions import TypedDict
-from openai import AsyncOpenAI
-from agent.state import InputState, OutputState
-from config import settings
-from typing import Dict, Any
+from typing import Any, Dict
 
-from dataclasses import dataclass
+from langgraph.graph import StateGraph
+from openai import AsyncOpenAI
+
+from agent.state import InputState, OutputState
+from agent.memory_store import save_memory
+from config import settings
 
 
 client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-async def call_model(state : InputState) -> Dict[str, Any]:
+async def call_model(state: InputState) -> Dict[str, Any]:
+    history = state["history"]
+    session_id = state["session_id"]
 
-    prompt = (
-        "You are a real estate assistant. Ask clarifying questions and reply concisely.\n"
-        f"User: {state['user_input']}"
-    )
+    messages = history + [{"role": "user", "content": state["user_input"]}]
 
     response = await client.chat.completions.create(
-        model = settings.MODEL_NAME,
-        messages=[{"role":"user", "content":prompt}]
+        model=settings.MODEL_NAME,
+        messages=messages,
     )
 
     message = response.choices[0].message.content or ""
 
+    messages.append({"role": "assistant", "content": message})
+    save_memory(session_id, messages)
+
     return {
-        "type" : "ai_reply",
-        "message" : message,
-        "ids" : None
+        "type": "ai_reply",
+        "message": message,
+        "ids": None,
     }
 
 # Define the graph

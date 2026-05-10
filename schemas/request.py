@@ -2,4 +2,4 @@ from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     query: str
-    session_id: str | None = None 
+    session_id: str 
