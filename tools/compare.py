@@ -2,27 +2,20 @@ import json
 from typing import Any, Dict, List
 
 
-DATA_PATH= r"C:\Users\arshc\Desktop\gpd-chatbot\data\properties.json"
-
-def _load_properties() -> List[Dict[str, Any]]:
-    with open(DATA_PATH, "r", encoding="utf=8") as f:
-        return json.load(f)
-
-
 def _matches_text(haystack: str, needle: str) -> bool:
     return needle.lower() in haystack.lower()
 
-def filter_properties(preferences: Dict[str, Any]) -> List[str]:
-    """
-    Filter properties based on available preferences.
-    Only apply filters for values that are not None.
-    Returns a list of matching IDs as strings (since your IDs are strings).
-    """
 
-    properties = _load_properties()
+def _load_listings(listings_path: str) -> List[Dict[str, Any]]:
+    with open(listings_path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
 
-    results = []
-    for item in properties:
+
+def filter_properties(preferences: Dict[str, Any], listings_path: str) -> List[str]:
+    listings = _load_listings(listings_path)
+
+    results: List[str] = []
+    for item in listings:
         if preferences.get("type") and item.get("type") != preferences["type"]:
             continue
 

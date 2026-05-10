@@ -14,12 +14,14 @@ async def run_preferences(state: InputState) -> Dict[str, Any]:
 
 
 def run_filter(state: InputState) -> Dict[str, Any]:
-    ids = filter_properties(state["preferences"])
+    ids = filter_properties(state["preferences"], state["listings_path"])
     return {"matched_ids": ids}
 
 
 def run_finalise(state: InputState) -> Dict[str, Any]:
     return finalise(state["preferences"], state["matched_ids"])
+
+
 
 
 graph = (
