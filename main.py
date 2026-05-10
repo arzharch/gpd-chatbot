@@ -19,7 +19,9 @@ async def chat_reply(payload : ChatRequest) -> ChatResponse:
     result = await graph.ainvoke(
         {"user_input": payload.query,
          "session_id" : payload.session_id,
-         "history": history
+         "history": history,
+         "preferences": {},
+         "matched_ids": [],
          }
     )
 

@@ -5,11 +5,13 @@ class InputState(TypedDict):
     user_input: str
     session_id: str
     history: list[dict]
+    preferences: dict
+    matched_ids: list[str]
 
 class OutputState(TypedDict):
     type: Literal["ai_reply", "ids"]
     message: str | None
-    ids: list[int] | None
+    ids: list[str] | None
 
 
 

@@ -1,40 +1,34 @@
 from typing import Any, Dict
 
 from langgraph.graph import StateGraph
-from openai import AsyncOpenAI
 
 from agent.state import InputState, OutputState
-from agent.memory_store import save_memory
-from config import settings
+from tools.collect_preferences import collect_preferences
+from tools.compare import filter_properties
+from tools.finalise import finalise
 
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+async def run_preferences(state: InputState) -> Dict[str, Any]:
+    prefs = await collect_preferences(state["user_input"])
+    return {"preferences": prefs}
 
-async def call_model(state: InputState) -> Dict[str, Any]:
-    history = state["history"]
-    session_id = state["session_id"]
 
-    messages = history + [{"role": "user", "content": state["user_input"]}]
+def run_filter(state: InputState) -> Dict[str, Any]:
+    ids = filter_properties(state["preferences"])
+    return {"matched_ids": ids}
 
-    response = await client.chat.completions.create(
-        model=settings.MODEL_NAME,
-        messages=messages,
-    )
 
-    message = response.choices[0].message.content or ""
+def run_finalise(state: InputState) -> Dict[str, Any]:
+    return finalise(state["preferences"], state["matched_ids"])
 
-    messages.append({"role": "assistant", "content": message})
-    save_memory(session_id, messages)
 
-    return {
-        "type": "ai_reply",
-        "message": message,
-        "ids": None,
-    }
-
-# Define the graph
-graph= (StateGraph(InputState, output_schema= OutputState)
-        .add_node("call_model", call_model)
-        .add_edge("__start__", "call_model")
-        .compile(name="GPD Chat")
-        )
+graph = (
+    StateGraph(InputState, output_schema=OutputState)
+    .add_node("collect_preferences", run_preferences)
+    .add_node("filter_properties", run_filter)
+    .add_node("finalise", run_finalise)
+    .add_edge("__start__", "collect_preferences")
+    .add_edge("collect_preferences", "filter_properties")
+    .add_edge("filter_properties", "finalise")
+    .compile(name="chat_graph")
+)
