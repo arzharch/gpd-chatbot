@@ -3,7 +3,9 @@ import re
 from typing import Optional, Dict, Any
 
 from openai import AsyncOpenAI
+
 from config import settings
+from tools.prompt_loader import load_prompt
 
 
 client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -24,7 +26,17 @@ def _extract_beds_rule(text: str) -> Optional[int]:
 def _extract_club_id_rule(text: str) -> Optional[str]:
     t = _normalize(text)
 
-    match = re.search(r"(under|below|upto|up to)\s*(\d+)\s*(cr|crore)", t)
+    match = re.search(r"(under|below|upto|up to|less than)\s*(\d+)\s*(cr|crore)", t)
+    if match:
+        num = match.group(2)
+        if num == "5":
+            return "under-5cr"
+        if num == "15":
+            return "under-15cr"
+        if num == "25":
+            return "under-25cr"
+
+    match = re.search(r"(around|about|approx|approximately|range of|budget of|budget)\s*(\d+)\s*(cr|crore)", t)
     if match:
         num = match.group(2)
         if num == "5":
@@ -47,22 +59,39 @@ def _extract_club_id_rule(text: str) -> Optional[str]:
     return None
 
 
-async def _extract_with_llm(text: str) -> Dict[str, Any]:
+def _extract_type_rule(text: str) -> Optional[str]:
+    t = _normalize(text)
+    if re.search(r"\b(apartment|apartments|flat|flats)\b", t):
+        return "APARTMENT"
+    if re.search(r"\b(villa|villas)\b", t):
+        return "VILLA"
+    if re.search(r"\b(land|plot|plots)\b", t):
+        return "LAND"
+    return None
+
+
+def _last_assistant_message(history: list[dict] | None) -> str:
+    if not history:
+        return ""
+    for item in reversed(history):
+        if item.get("role") == "assistant":
+            return (item.get("content") or "").strip()
+    return ""
+
+
+async def _extract_with_llm(text: str, summary: str | None, history: list[dict] | None) -> Dict[str, Any]:
     """
     LLM zero-shot extraction. Returns a JSON dict with keys:
     type, location, beds, club_id, furnished, pool, zone_type
     """
-    system = (
-        "You are an extraction engine. Return ONLY valid JSON.\n"
-        "Extract real estate preferences from user text.\n"
-        "Keys: type, location, beds, club_id, furnished, pool, zone_type.\n"
-        "Allowed type values: APARTMENT, VILLA, LAND, or null.\n"
-        "club_id must be one of: under-5cr, under-15cr, under-25cr, or null.\n"
-        "beds must be integer or null. pool must be true/false/null.\n"
-        "If unknown, use null."
-    )
+    system = load_prompt("extractor_system")
 
-    user = f"User text: {text}"
+    payload = {
+        "user_input": text,
+        "conversation_summary": summary or "",
+        "last_assistant_message": _last_assistant_message(history),
+    }
+    user = json.dumps(payload)
 
     response = await client.chat.completions.create(
         model=settings.MODEL_NAME,
@@ -74,7 +103,10 @@ async def _extract_with_llm(text: str) -> Dict[str, Any]:
     )
 
     content = response.choices[0].message.content or "{}"
-    return json.loads(content)
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return {}
 
 
 def _validate_and_merge(llm_prefs: Dict[str, Any], text: str) -> Dict[str, Any]:
@@ -101,6 +133,10 @@ def _validate_and_merge(llm_prefs: Dict[str, Any], text: str) -> Dict[str, Any]:
     if prefs["club_id"] is None and club_id is not None:
         prefs["club_id"] = club_id
 
+    prop_type = _extract_type_rule(text)
+    if prefs["type"] is None and prop_type is not None:
+        prefs["type"] = prop_type
+
     # Normalize type if user uses lowercase
     if isinstance(prefs["type"], str):
         prefs["type"] = prefs["type"].upper()
@@ -108,11 +144,11 @@ def _validate_and_merge(llm_prefs: Dict[str, Any], text: str) -> Dict[str, Any]:
     return prefs
 
 
-async def collect_preferences(text: str) -> Dict[str, Any]:
+async def collect_preferences(text: str, summary: str | None = None, history: list[dict] | None = None) -> Dict[str, Any]:
     """
     Main function to call from your graph.
     1) LLM extraction
     2) Rule-based validation/patch
     """
-    llm_prefs = await _extract_with_llm(text)
+    llm_prefs = await _extract_with_llm(text, summary, history)
     return _validate_and_merge(llm_prefs, text)

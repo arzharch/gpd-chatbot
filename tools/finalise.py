@@ -12,30 +12,36 @@ def _missing_key_fields(prefs: Dict[str, Any]) -> List[str]:
     return missing
 
 def finalise(preferences: Dict[str, Any], ids: List[str]) -> Dict[str, Any]:
-    """
-    Decide whether to ask for clarification or return matching IDs.
-    """
+    """Decide whether to ask for clarification or return matching IDs."""
 
     missing = _missing_key_fields(preferences)
+    response_context = {
+        "missing_fields": missing,
+        "matched_count": len(ids),
+        "has_matches": bool(ids),
+        "no_matches": not ids and not missing,
+        "preferences": {key: value for key, value in preferences.items() if value is not None},
+    }
 
     if missing:
-        question = "To help you find the best properties, could you please provide your " + " and ".join(missing) + "?"
-
-        return{
+        return {
             "type": "ai_reply",
-            "message": question,
-            "ids": None,    
+            "message": None,
+            "ids": None,
+            "response_context": response_context,
         }
-    
+
     if not ids:
         return {
             "type": "ai_reply",
-            "message": "Sorry, I couldn't find any properties matching your preferences. Could you please adjust your criteria?",
+            "message": None,
             "ids": None,
+            "response_context": response_context,
         }
-    
+
     return {
         "type": "ids",
-        "message": "Here are the best matches based on what you shared.",
+        "message": None,
         "ids": ids,
+        "response_context": response_context,
     }
