@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from typing import List
 
 class Settings(BaseSettings):
     OPENAI_API_KEY : str
@@ -10,9 +11,13 @@ class Settings(BaseSettings):
     VERIFIER_SCORE_THRESHOLD : float = 0.8
     VERIFIER_MAX_RETRIES : int = 1
     SUMMARY_MAX_CHARS : int = 1200
+    ALLOWED_ORIGINS : List[str]
+    RATE_LIMIT_CHAT_PER_MINUTE : int
+
+
 
     class Config:
         env_file=".env"
 
 
-settings = Settings()
+settings = Settings()

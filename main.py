@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from supabase import Client
 from schemas.request import ChatRequest
 from schemas.response import ChatMessage, ChatResponse, parse_chat_response
-
+from middleware.setup import setup_middleware
+from middleware.rate_limiter import limiter, get_chat_rate_limit
 from agent.graph import graph
 from tools.session_listings import write_session_listings
 from agent.summarizer import update_summary
@@ -21,9 +22,13 @@ from agent.state import AgentState, Preferences
 
 app = FastAPI()
 
+setup_middleware(app)
+
 
 @app.post("/chat", response_model=ChatResponse)
+@limiter.limit(get_chat_rate_limit())
 async def chat_reply(
+    request: Request,
     payload: ChatRequest,
     read_db: Client = Depends(get_read_client),
     write_db: Client = Depends(get_write_client),
@@ -85,4 +90,4 @@ async def get_session_messages(
 ) -> list[ChatMessage]:
     rows = await fetch_messages(write_db, session_id)
     return [ChatMessage(**row) for row in rows]
-
+
