@@ -1,47 +1,26 @@
 import json
-from typing import Any, Dict, List
+from pydantic import BaseModel, Field
+from langchain_core.tools import tool
 
+class CompareInput(BaseModel):
+    ids: list[str] = Field(description="List of property IDs to compare.")
+    listings_path: str = Field(description="The path to the listings JSON file. Always pass the path from the state.")
 
-def _matches_text(haystack: str, needle: str) -> bool:
-    return needle.lower() in haystack.lower()
+@tool("compare_properties", args_schema=CompareInput)
+def compare_properties(ids: list[str], listings_path: str) -> str:
+    """Use this tool to get detailed information about specific properties to compare them for the user."""
+    try:
+        with open(listings_path, "r", encoding="utf-8") as f:
+            listings = json.load(f)
+    except FileNotFoundError:
+        return json.dumps({"error": f"Listings file {listings_path} not found."})
 
-
-def _load_listings(listings_path: str) -> List[Dict[str, Any]]:
-    with open(listings_path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def filter_properties(preferences: Dict[str, Any], listings_path: str) -> List[str]:
-    listings = _load_listings(listings_path)
-
-    results: List[str] = []
+    results = []
     for item in listings:
-        if preferences.get("type") and item.get("type") != preferences["type"]:
-            continue
-
-        if preferences.get("beds") is not None:
-            if item.get("beds") is None or item.get("beds") != preferences["beds"]:
-                continue
-
-        if preferences.get("club_id") and item.get("club_id") != preferences["club_id"]:
-            continue
-
-        if preferences.get("location"):
-            if not item.get("location") or not _matches_text(item["location"], preferences["location"]):
-                continue
-
-        if preferences.get("furnished"):
-            if item.get("furnished") != preferences["furnished"]:
-                continue
-
-        if preferences.get("pool") is not None:
-            if item.get("pool") != preferences["pool"]:
-                continue
-
-        if preferences.get("zone_type"):
-            if item.get("zone_type") != preferences["zone_type"]:
-                continue
-
-        results.append(item["id"])
-
-    return results
+        if item.get("id") in ids:
+            results.append(item)
+            
+    if not results:
+        return json.dumps({"error": "No matching properties found for the given IDs."})
+        
+    return json.dumps({"compared_properties": results})

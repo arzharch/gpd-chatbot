@@ -1,27 +1,25 @@
-from typing import Literal, TypedDict
+from typing import Any, Dict, List, Literal, TypedDict, Annotated
+import operator
+from pydantic import BaseModel, Field
 
+class Preferences(BaseModel):
+    type: str | None = None
+    location: str | None = None
+    beds: int | None = None
+    club_id: str | None = None
+    furnished: bool | None = None
+    pool: bool | None = None
+    zone_type: str | None = None
 
-class InputState(TypedDict):
-    user_input: str
+class AgentState(TypedDict):
     session_id: str
-    history: list[dict]
-    conversation_summary: str
-    preferences: dict
-    matched_ids: list[str]
+    messages: Annotated[list, operator.add]
+    shortlist: List[str]
+    preferences: Preferences
+    confidence: float
+    verifier_reason: str | None
+    next_action: str | None
     listings_path: str
-    guardrails_blocked: bool
-    verifier_score: float | None
-    verifier_retries: int
-    response_context: dict
-    message: str | None
-    ids: list[str] | None
-
-
-class OutputState(TypedDict):
-    type: Literal["ai_reply", "ids"]
-    message: str | None
-    ids: list[str] | None
-
-
-
+    conversation_summary: str
+    final_response: Dict[str, Any] | None
 
